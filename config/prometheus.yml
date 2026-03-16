@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'rf-analyzer'
+    static_configs:
+      - targets: ['api:8889']
+        labels:
+          service: 'api'
+          
+  - job_name: 'sniffer'
+    static_configs:
+      - targets: ['sniffer:8889']
+        labels:
+          service: 'sniffer'
+          
+  - job_name: 'ml-engine'
+    static_configs:
+      - targets: ['ml-engine:8889']
+        labels:
+          service: 'ml'
