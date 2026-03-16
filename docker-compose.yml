@@ -25,7 +25,7 @@ services:
     build: ./api
     container_name: rf2-api
     ports:
-      - "8890:8890"
+      - "8891:8890"
     environment:
       - MONGODB_URL=mongodb://127.0.0.1:27227
       - REDIS_URL=redis://127.0.0.1:6379
