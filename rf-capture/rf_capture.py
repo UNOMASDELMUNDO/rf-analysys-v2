@@ -6,7 +6,7 @@ import os
 import json
 from datetime import datetime, timezone
 
-MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27227")
+MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27228")
 
 class RFCapture:
     def __init__(self):

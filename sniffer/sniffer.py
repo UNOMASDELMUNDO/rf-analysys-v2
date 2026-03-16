@@ -13,7 +13,7 @@ from pymongo import MongoClient
 from redis import Redis
 
 # Configuration
-MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27227")
+MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27228")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://rf2-redis:6379")
 ML_ENABLED = os.environ.get("ML_ENABLED", "true").lower() == "true"
 

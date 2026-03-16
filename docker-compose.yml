@@ -6,7 +6,7 @@ services:
     image: mongo:7
     container_name: rf2-mongodb
     ports:
-      - "27227:27017"
+      - "27228:27017"
     volumes:
       - mongodb_data:/data/db
     environment:
