@@ -183,3 +183,13 @@ def get_metrics():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8890)
+
+# Serve dashboard HTML
+@app.get("/dashboard")
+def serve_dashboard():
+    import os
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    if os.path.exists(dashboard_path):
+        from fastapi.responses import FileResponse
+        return FileResponse(dashboard_path)
+    return {"error": "Dashboard not found"}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RF Analyzer V2</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e0e0e0; padding: 20px; }
+        h1 { color: #ff6b6b; margin-bottom: 20px; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+        .stat { background: #161b22; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #30363d; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #ff6b6b; }
+        .stat-label { font-size: 12px; color: #8b949e; margin-top: 5px; }
+        .section { background: #161b22; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .section h2 { color: #ff6b6b; margin-bottom: 15px; font-size: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #30363d; }
+        th { color: #8b949e; font-size: 11px; text-transform: uppercase; }
+        tr:hover { background: #21262d; }
+        .refresh { background: #ff6b6b; color: #fff; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔬 RF Analyzer V2 - Dashboard</h1>
+    <button class="refresh" onclick="loadData()">🔄 Refresh</button>
+    
+    <div class="stats" id="stats">
+        <div class="stat"><div class="stat-value" id="packets">0</div><div class="stat-label">Packets</div></div>
+        <div class="stat"><div class="stat-value" id="threats">0</div><div class="stat-label">Threats</div></div>
+        <div class="stat"><div class="stat-value" id="ml">0</div><div class="stat-label">ML Predictions</div></div>
+        <div class="stat"><div class="stat-value" id="alerts">0</div><div class="stat-label">Alerts</div></div>
+    </div>
+    
+    <div class="section">
+        <h2>📡 Devices</h2>
+        <table>
+            <thead><tr><th>IP</th><th>MAC</th><th>First Seen</th><th>Last Seen</th></tr></thead>
+            <tbody id="devices"></tbody>
+        </table>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Recent Signals</h2>
+        <table>
+            <thead><tr><th>Protocol</th><th>Source</th><th>Dest</th><th>Timestamp</th></tr></thead>
+            <tbody id="signals"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const API = 'http://127.0.0.1:8891';
+        
+        async function loadData() {
+            try {
+                // Stats
+                const stats = await fetch(API + '/api/v2/stats').then(r => r.json());
+                document.getElementById('packets').textContent = stats.packets_captured || 0;
+                document.getElementById('threats').textContent = stats.threats_detected || 0;
+                document.getElementById('ml').textContent = stats.ml_predictions || 0;
+                document.getElementById('alerts').textContent = stats.alerts_sent || 0;
+                
+                // Devices
+                const devices = await fetch(API + '/api/v2/devices').then(r => r.json());
+                document.getElementById('devices').innerHTML = (devices.devices || []).map(d => 
+                    `<tr><td>${d.ip}</td><td>${d.mac || 'N/A'}</td><td>${d.first_seen || 'N/A'}</td><td>${d.last_seen || 'N/A'}</td></tr>`
+                ).join('') || '<tr><td colspan="4">No devices found</td></tr>';
+                
+                // Signals
+                const signals = await fetch(API + '/api/v2/signals').then(r => r.json());
+                document.getElementById('signals').innerHTML = (signals.signals || []).slice(0, 10).map(s => 
+                    `<tr><td>${s.protocol || 'N/A'}</td><td>${s.src_ip || 'N/A'}</td><td>${s.dst_ip || 'N/A'}</td><td>${s.timestamp || 'N/A'}</td></tr>`
+                ).join('') || '<tr><td colspan="4">No signals found</td></tr>';
+                
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        
+        loadData();
+        setInterval(loadData, 10000);
+    </script>
+</body>
+</html>
