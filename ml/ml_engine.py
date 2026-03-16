@@ -14,7 +14,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
 MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27228")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 
 class MLEngine:
     def __init__(self):
