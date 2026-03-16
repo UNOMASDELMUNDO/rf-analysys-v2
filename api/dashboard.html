@@ -7,90 +7,167 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e0e0e0; padding: 20px; }
         h1 { color: #ff6b6b; margin-bottom: 20px; }
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+        .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 30px; }
         .stat { background: #161b22; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #30363d; }
-        .stat-value { font-size: 32px; font-weight: bold; color: #ff6b6b; }
-        .stat-label { font-size: 12px; color: #8b949e; margin-top: 5px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #ff6b6b; }
+        .stat-label { font-size: 11px; color: #8b949e; margin-top: 5px; text-transform: uppercase; }
         .section { background: #161b22; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         .section h2 { color: #ff6b6b; margin-bottom: 15px; font-size: 16px; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #30363d; }
-        th { color: #8b949e; font-size: 11px; text-transform: uppercase; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; }
+        th { color: #8b949e; font-size: 10px; text-transform: uppercase; }
         tr:hover { background: #21262d; }
-        .refresh { background: #ff6b6b; color: #fff; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .vendor { color: #58a6ff; }
+        .type { color: #7ee787; }
+        .risk-high { color: #f85149; }
+        .risk-low { color: #7ee787; }
+        .refresh { background: #ff6b6b; color: #fff; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px; }
+        .actions { margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <h1>🔬 RF Analyzer V2 - Dashboard</h1>
-    <button class="refresh" onclick="loadData()">🔄 Refresh</button>
+    <div class="actions">
+        <button class="refresh" onclick="loadData()">🔄 Refresh</button>
+    </div>
     
     <div class="stats">
-        <div class="stat"><div class="stat-value" id="packets">-</div><div class="stat-label">Packets</div></div>
-        <div class="stat"><div class="stat-value" id="threats">-</div><div class="stat-label">Threats</div></div>
-        <div class="stat"><div class="stat-value" id="ml">-</div><div class="stat-label">ML Predictions</div></div>
+        <div class="stat"><div class="stat-value" id="devices">-</div><div class="stat-label">Devices</div></div>
+        <div class="stat"><div class="stat-value" id="signals">-</div><div class="stat-label">Signals</div></div>
         <div class="stat"><div class="stat-value" id="alerts">-</div><div class="stat-label">Alerts</div></div>
+        <div class="stat"><div class="stat-value" id="ml">-</div><div class="stat-label">ML Classified</div></div>
+        <div class="stat"><div class="stat-value" id="anomalies">-</div><div class="stat-label">Anomalies</div></div>
+        <div class="stat"><div class="stat-value" id="redis">-</div><div class="stat-label">Redis</div></div>
     </div>
     
     <div class="section">
-        <h2>📡 Devices</h2>
+        <h2>📡 Dispositivos Detectados</h2>
         <table>
-            <thead><tr><th>IP</th><th>MAC</th><th>Type</th><th>Last Seen</th></tr></thead>
-            <tbody id="devices"></tbody>
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>MAC</th>
+                    <th>Fabricante</th>
+                    <th>Tipo</th>
+                    <th>Risk</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody id="devices-table"></tbody>
         </table>
     </div>
     
     <div class="section">
-        <h2>📊 Recent Signals</h2>
+        <h2>📊 Señales/Recientes</h2>
         <table>
-            <thead><tr><th>Protocol</th><th>Source</th><th>Dest</th><th>Port</th><th>Timestamp</th></tr></thead>
-            <tbody id="signals"></tbody>
+            <thead>
+                <tr>
+                    <th>Protocol</th>
+                    <th>Source IP</th>
+                    <th>Dest IP</th>
+                    <th>Port</th>
+                    <th>ML Type</th>
+                    <th>Confidence</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody id="signals-table"></tbody>
         </table>
     </div>
 
     <script>
         const API = 'http://127.0.0.1:8891';
         
+        function getVendor(mac) {
+            const vendors = {
+                '00:D8:61': 'Dell',
+                '00:1A:2B': 'Cisco',
+                '00:50:56': 'VMware',
+                '08:00:27': 'VirtualBox',
+                '1C:F4:3F': 'Azure/AWS',
+                '26:51:6C': 'Unknown',
+                'B8:27:EB': 'Raspberry Pi',
+                'DC:A6:32': 'Raspberry Pi',
+                'E4:5F:01': 'Raspberry Pi'
+            };
+            const prefix = mac ? mac.substring(0, 8).toUpperCase() : '';
+            return vendors[prefix] || 'Unknown';
+        }
+        
+        function getDeviceType(ip, trafficTypes) {
+            if (ip.startsWith('192.168.1.1') || ip === '192.168.1.1') return 'Router/Gateway';
+            if (ip.startsWith('192.168.1.')) return 'Local Device';
+            if (trafficTypes && trafficTypes.includes('mdns')) return 'Apple Device';
+            if (trafficTypes && trafficTypes.includes('homeassistant')) return 'Smart Home';
+            if (trafficTypes && trafficTypes.includes('mqtt')) return 'IoT Device';
+            return 'Unknown';
+        }
+        
+        function getRiskClass(score) {
+            if (score >= 70) return 'risk-high';
+            return 'risk-low';
+        }
+        
         async function loadData() {
             try {
-                console.log("Loading data...");
-                
                 // Stats
-                try {
-                    const stats = await fetch(API + '/api/v2/stats');
-                    const statsData = await stats.json();
-                    document.getElementById('packets').textContent = statsData.packets_captured || 0;
-                    document.getElementById('threats').textContent = statsData.threats_detected || 0;
-                    document.getElementById('ml').textContent = statsData.ml_predictions || 0;
-                    document.getElementById('alerts').textContent = statsData.alerts_sent || 0;
-                } catch(e) { console.error("Stats error:", e); }
+                const statsRes = await fetch(API + '/api/v2/stats');
+                const stats = await statsRes.json();
+                document.getElementById('devices').textContent = stats.devices || 0;
+                document.getElementById('signals').textContent = stats.signals || 0;
+                document.getElementById('alerts').textContent = stats.alerts || 0;
+                document.getElementById('ml').textContent = stats.ml_classified || 0;
+                document.getElementById('anomalies').textContent = stats.anomalies || 0;
+                document.getElementById('redis').textContent = stats.redis_connected ? '✅' : '❌';
                 
                 // Devices
-                try {
-                    const devices = await fetch(API + '/api/v2/devices');
-                    const devicesData = await devices.json();
-                    const devs = devicesData.devices || [];
-                    document.getElementById('devices').innerHTML = devs.length ? devs.map(d => 
-                        `<tr><td>${d.ip}</td><td>${d.mac || 'N/A'}</td><td>${d.device_type || '-'}</td><td>${d.last_seen ? d.last_seen.substring(0,19) : 'N/A'}</td></tr>`
-                    ).join('') : '<tr><td colspan="4">No devices found</td></tr>';
-                } catch(e) { console.error("Devices error:", e); }
+                const devicesRes = await fetch(API + '/api/v2/devices?limit=50');
+                const devicesData = await devicesRes.json();
+                const devs = devicesData.devices || [];
+                document.getElementById('devices-table').innerHTML = devs.map(d => {
+                    const vendor = d.vendor || getVendor(d.mac);
+                    const type = d.device_type || getDeviceType(d.ip, d.traffic_types);
+                    const risk = d.risk_score || 0;
+                    const firstSeen = d.first_seen ? d.first_seen.substring(0, 19) : 'N/A';
+                    const lastSeen = d.last_seen ? d.last_seen.substring(0, 19) : 'N/A';
+                    return `<tr>
+                        <td>${d.ip}</td>
+                        <td>${d.mac || 'N/A'}</td>
+                        <td class="vendor">${vendor}</td>
+                        <td class="type">${type}</td>
+                        <td class="${getRiskClass(risk)}">${risk}</td>
+                        <td>${firstSeen}</td>
+                        <td>${lastSeen}</td>
+                    </tr>`;
+                }).join('') || '<tr><td colspan="7">No devices found</td></tr>';
                 
                 // Signals
-                try {
-                    const signals = await fetch(API + '/api/v2/signals');
-                    const signalsData = await signals.json();
-                    const sigs = signalsData.signals || [];
-                    document.getElementById('signals').innerHTML = sigs.length ? sigs.slice(0, 10).map(s => 
-                        `<tr><td>${s.protocol || 'N/A'}</td><td>${s.src_ip || 'N/A'}</td><td>${s.dst_ip || 'N/A'}</td><td>${s.port || '-'}</td><td>${s.timestamp ? s.timestamp.substring(0,19) : 'N/A'}</td></tr>`
-                    ).join('') : '<tr><td colspan="5">No signals found</td></tr>';
-                } catch(e) { console.error("Signals error:", e); }
+                const signalsRes = await fetch(API + '/api/v2/signals?limit=20');
+                const signalsData = await signalsRes.json();
+                const sigs = signalsData.signals || [];
+                document.getElementById('signals-table').innerHTML = sigs.map(s => {
+                    const mlType = s.ml_classification ? s.ml_classification.type : '-';
+                    const confidence = s.ml_classification ? s.ml_classification.confidence.toFixed(2) : '-';
+                    const timestamp = s.timestamp ? s.timestamp.substring(0, 19) : 'N/A';
+                    return `<tr>
+                        <td>${s.protocol || 'N/A'}</td>
+                        <td>${s.src_ip || 'N/A'}</td>
+                        <td>${s.dst_ip || 'N/A'}</td>
+                        <td>${s.port || '-'}</td>
+                        <td class="vendor">${mlType}</td>
+                        <td>${confidence}</td>
+                        <td>${timestamp}</td>
+                    </tr>`;
+                }).join('') || '<tr><td colspan="7">No signals found. Run sniffer!</td></tr>';
                 
             } catch(e) {
-                console.error("Global error:", e);
+                console.error(e);
             }
         }
         
         loadData();
-        setInterval(loadData, 10000);
+        setInterval(loadData, 5000);
     </script>
 </body>
 </html>
