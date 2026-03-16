@@ -193,3 +193,41 @@ def serve_dashboard():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8890)
+
+from ml_engine import MLEngine
+
+# ML Analysis Endpoints
+@app.get("/api/v2/ml/run")
+def run_ml_classification():
+    """Ejecuta clasificación ML en todos los dispositivos"""
+    from ml_engine import MLEngine
+    ml = MLEngine()
+    result = ml.run_ml_classification()
+    return result
+
+@app.get("/api/v2/ml/patterns")
+def get_traffic_patterns():
+    """Obtiene patrones de tráfico"""
+    from ml_engine import MLEngine
+    ml = MLEngine()
+    patterns = ml.analyze_traffic_patterns()
+    return patterns
+
+@app.get("/api/v2/ml/anomalies")
+def get_anomalies():
+    """Obtiene anomalías detectadas"""
+    from ml_engine import MLEngine
+    ml = MLEngine()
+    anomalies = ml.detect_anomalies()
+    return {"total": len(anomalies), "anomalies": anomalies}
+
+@app.get("/api/v2/ml/classify-device/{ip}")
+def classify_device(ip: str):
+    """Clasifica un dispositivo específico"""
+    from ml_engine import MLEngine
+    ml = MLEngine()
+    device = get_db().devices.find_one({"ip": ip})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    classification = ml.classify_device(device)
+    return classification

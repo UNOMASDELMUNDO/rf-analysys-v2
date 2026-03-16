@@ -9,9 +9,11 @@ RUN pip install --no-cache-dir \
     redis \
     pydantic \
     python-dotenv \
-    httpx
+    httpx \
+    numpy
 
 COPY *.py *.html /app/
+COPY ml/ml_engine.py /app/ml_engine.py
 
 EXPOSE 8890
 
