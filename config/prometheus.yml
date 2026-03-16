@@ -5,18 +5,18 @@ global:
 scrape_configs:
   - job_name: 'rf-analyzer'
     static_configs:
-      - targets: ['api:8889']
+      - targets: ['api:8890']
         labels:
           service: 'api'
           
   - job_name: 'sniffer'
     static_configs:
-      - targets: ['sniffer:8889']
+      - targets: ['sniffer:8890']
         labels:
           service: 'sniffer'
           
   - job_name: 'ml-engine'
     static_configs:
-      - targets: ['ml-engine:8889']
+      - targets: ['ml-engine:8890']
         labels:
           service: 'ml'
