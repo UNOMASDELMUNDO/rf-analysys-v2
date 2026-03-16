@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir \
     numpy
 
 COPY *.py *.html /app/
-COPY ml/ml_engine.py /app/ml_engine.py
 
 EXPOSE 8890
 
