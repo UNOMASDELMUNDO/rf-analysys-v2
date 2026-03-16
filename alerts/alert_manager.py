@@ -10,7 +10,7 @@ from redis import Redis
 import requests
 
 MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27228")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://rf2-redis:6379")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")

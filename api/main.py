@@ -23,7 +23,7 @@ app.add_middleware(
 
 # Database connections
 MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://rf2-mongodb:27228")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://rf2-redis:6379")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379")
 
 def get_db():
     client = MongoClient(MONGODB_URL)
