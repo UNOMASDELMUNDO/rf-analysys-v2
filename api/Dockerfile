@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir \
     python-dotenv \
     httpx
 
-COPY *.py /app/
+COPY *.py *.html /app/
 
 EXPOSE 8890
 
