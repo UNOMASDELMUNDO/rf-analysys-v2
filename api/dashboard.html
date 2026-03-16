@@ -3,7 +3,6 @@
 <head>
     <title>RF Analyzer V2</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e0e0e0; padding: 20px; }
@@ -25,17 +24,17 @@
     <h1>🔬 RF Analyzer V2 - Dashboard</h1>
     <button class="refresh" onclick="loadData()">🔄 Refresh</button>
     
-    <div class="stats" id="stats">
-        <div class="stat"><div class="stat-value" id="packets">0</div><div class="stat-label">Packets</div></div>
-        <div class="stat"><div class="stat-value" id="threats">0</div><div class="stat-label">Threats</div></div>
-        <div class="stat"><div class="stat-value" id="ml">0</div><div class="stat-label">ML Predictions</div></div>
-        <div class="stat"><div class="stat-value" id="alerts">0</div><div class="stat-label">Alerts</div></div>
+    <div class="stats">
+        <div class="stat"><div class="stat-value" id="packets">-</div><div class="stat-label">Packets</div></div>
+        <div class="stat"><div class="stat-value" id="threats">-</div><div class="stat-label">Threats</div></div>
+        <div class="stat"><div class="stat-value" id="ml">-</div><div class="stat-label">ML Predictions</div></div>
+        <div class="stat"><div class="stat-value" id="alerts">-</div><div class="stat-label">Alerts</div></div>
     </div>
     
     <div class="section">
         <h2>📡 Devices</h2>
         <table>
-            <thead><tr><th>IP</th><th>MAC</th><th>First Seen</th><th>Last Seen</th></tr></thead>
+            <thead><tr><th>IP</th><th>MAC</th><th>Type</th><th>Last Seen</th></tr></thead>
             <tbody id="devices"></tbody>
         </table>
     </div>
@@ -43,7 +42,7 @@
     <div class="section">
         <h2>📊 Recent Signals</h2>
         <table>
-            <thead><tr><th>Protocol</th><th>Source</th><th>Dest</th><th>Timestamp</th></tr></thead>
+            <thead><tr><th>Protocol</th><th>Source</th><th>Dest</th><th>Port</th><th>Timestamp</th></tr></thead>
             <tbody id="signals"></tbody>
         </table>
     </div>
@@ -53,27 +52,40 @@
         
         async function loadData() {
             try {
+                console.log("Loading data...");
+                
                 // Stats
-                const stats = await fetch(API + '/api/v2/stats').then(r => r.json());
-                document.getElementById('packets').textContent = stats.packets_captured || 0;
-                document.getElementById('threats').textContent = stats.threats_detected || 0;
-                document.getElementById('ml').textContent = stats.ml_predictions || 0;
-                document.getElementById('alerts').textContent = stats.alerts_sent || 0;
+                try {
+                    const stats = await fetch(API + '/api/v2/stats');
+                    const statsData = await stats.json();
+                    document.getElementById('packets').textContent = statsData.packets_captured || 0;
+                    document.getElementById('threats').textContent = statsData.threats_detected || 0;
+                    document.getElementById('ml').textContent = statsData.ml_predictions || 0;
+                    document.getElementById('alerts').textContent = statsData.alerts_sent || 0;
+                } catch(e) { console.error("Stats error:", e); }
                 
                 // Devices
-                const devices = await fetch(API + '/api/v2/devices').then(r => r.json());
-                document.getElementById('devices').innerHTML = (devices.devices || []).map(d => 
-                    `<tr><td>${d.ip}</td><td>${d.mac || 'N/A'}</td><td>${d.first_seen || 'N/A'}</td><td>${d.last_seen || 'N/A'}</td></tr>`
-                ).join('') || '<tr><td colspan="4">No devices found</td></tr>';
+                try {
+                    const devices = await fetch(API + '/api/v2/devices');
+                    const devicesData = await devices.json();
+                    const devs = devicesData.devices || [];
+                    document.getElementById('devices').innerHTML = devs.length ? devs.map(d => 
+                        `<tr><td>${d.ip}</td><td>${d.mac || 'N/A'}</td><td>${d.device_type || '-'}</td><td>${d.last_seen ? d.last_seen.substring(0,19) : 'N/A'}</td></tr>`
+                    ).join('') : '<tr><td colspan="4">No devices found</td></tr>';
+                } catch(e) { console.error("Devices error:", e); }
                 
                 // Signals
-                const signals = await fetch(API + '/api/v2/signals').then(r => r.json());
-                document.getElementById('signals').innerHTML = (signals.signals || []).slice(0, 10).map(s => 
-                    `<tr><td>${s.protocol || 'N/A'}</td><td>${s.src_ip || 'N/A'}</td><td>${s.dst_ip || 'N/A'}</td><td>${s.timestamp || 'N/A'}</td></tr>`
-                ).join('') || '<tr><td colspan="4">No signals found</td></tr>';
+                try {
+                    const signals = await fetch(API + '/api/v2/signals');
+                    const signalsData = await signals.json();
+                    const sigs = signalsData.signals || [];
+                    document.getElementById('signals').innerHTML = sigs.length ? sigs.slice(0, 10).map(s => 
+                        `<tr><td>${s.protocol || 'N/A'}</td><td>${s.src_ip || 'N/A'}</td><td>${s.dst_ip || 'N/A'}</td><td>${s.port || '-'}</td><td>${s.timestamp ? s.timestamp.substring(0,19) : 'N/A'}</td></tr>`
+                    ).join('') : '<tr><td colspan="5">No signals found</td></tr>';
+                } catch(e) { console.error("Signals error:", e); }
                 
             } catch(e) {
-                console.error(e);
+                console.error("Global error:", e);
             }
         }
         
