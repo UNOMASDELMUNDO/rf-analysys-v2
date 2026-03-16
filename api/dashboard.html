@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>RF Analyzer V2</title>
+    <title>RF Analyzer V2 - Security Dashboard</title>
     <meta charset="utf-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -9,8 +9,11 @@
         h1 { color: #ff6b6b; margin-bottom: 20px; }
         .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 30px; }
         .stat { background: #161b22; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #30363d; }
-        .stat-value { font-size: 28px; font-weight: bold; color: #ff6b6b; }
+        .stat-value { font-size: 28px; font-weight: bold; }
         .stat-label { font-size: 11px; color: #8b949e; margin-top: 5px; text-transform: uppercase; }
+        .stat-ok { color: #7ee787; }
+        .stat-warn { color: #f0883e; }
+        .stat-crit { color: #f85149; }
         .section { background: #161b22; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         .section h2 { color: #ff6b6b; margin-bottom: 15px; font-size: 16px; }
         table { width: 100%; border-collapse: collapse; }
@@ -19,151 +22,102 @@
         tr:hover { background: #21262d; }
         .vendor { color: #58a6ff; }
         .type { color: #7ee787; }
-        .risk-high { color: #f85149; }
         .risk-low { color: #7ee787; }
+        .risk-med { color: #f0883e; }
+        .risk-high { color: #f85149; }
+        .risk-crit { color: #ff7b72; font-weight: bold; }
+        .vuln { display: inline-block; background: #f8514933; color: #f85149; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin: 2px; }
         .refresh { background: #ff6b6b; color: #fff; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px; }
         .actions { margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <h1>🔬 RF Analyzer V2 - Dashboard</h1>
+    <h1>🔬 RF Analyzer V2 - Security Dashboard</h1>
     <div class="actions">
         <button class="refresh" onclick="loadData()">🔄 Refresh</button>
     </div>
     
     <div class="stats">
         <div class="stat"><div class="stat-value" id="devices">-</div><div class="stat-label">Devices</div></div>
-        <div class="stat"><div class="stat-value" id="signals">-</div><div class="stat-label">Signals</div></div>
-        <div class="stat"><div class="stat-value" id="alerts">-</div><div class="stat-label">Alerts</div></div>
-        <div class="stat"><div class="stat-value" id="ml">-</div><div class="stat-label">ML Classified</div></div>
-        <div class="stat"><div class="stat-value" id="anomalies">-</div><div class="stat-label">Anomalies</div></div>
-        <div class="stat"><div class="stat-value" id="redis">-</div><div class="stat-label">Redis</div></div>
+        <div class="stat"><div class="stat-value stat-crit" id="critical">-</div><div class="stat-label">Critical</div></div>
+        <div class="stat"><div class="stat-value stat-warn" id="high">-</div><div class="stat-label">High Risk</div></div>
+        <div class="stat"><div class="stat-value" id="medium">-</div><div class="stat-label">Medium</div></div>
+        <div class="stat"><div class="stat-value stat-ok" id="low">-</div><div class="stat-label">Low Risk</div></div>
+        <div class="stat"><div class="stat-value" id="vulns">-</div><div class="stat-label">Vulns Found</div></div>
     </div>
     
     <div class="section">
-        <h2>📡 Dispositivos Detectados</h2>
+        <h2>⚠️ Devices by Risk Level</h2>
         <table>
             <thead>
                 <tr>
-                    <th>IP</th>
-                    <th>MAC</th>
-                    <th>Fabricante</th>
-                    <th>Tipo</th>
-                    <th>Risk</th>
-                    <th>First Seen</th>
-                    <th>Last Seen</th>
+                    <th>IP</th><th>MAC</th><th>Fabricante</th><th>Tipo</th><th>Risk</th>
+                    <th>Vulnerabilities</th><th>Last Seen</th>
                 </tr>
             </thead>
             <tbody id="devices-table"></tbody>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>📊 Señales/Recientes</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Protocol</th>
-                    <th>Source IP</th>
-                    <th>Dest IP</th>
-                    <th>Port</th>
-                    <th>ML Type</th>
-                    <th>Confidence</th>
-                    <th>Timestamp</th>
-                </tr>
-            </thead>
-            <tbody id="signals-table"></tbody>
         </table>
     </div>
 
     <script>
         const API = 'http://127.0.0.1:8891';
         
-        function getVendor(mac) {
-            const vendors = {
-                '00:D8:61': 'Dell',
-                '00:1A:2B': 'Cisco',
-                '00:50:56': 'VMware',
-                '08:00:27': 'VirtualBox',
-                '1C:F4:3F': 'Azure/AWS',
-                '26:51:6C': 'Unknown',
-                'B8:27:EB': 'Raspberry Pi',
-                'DC:A6:32': 'Raspberry Pi',
-                'E4:5F:01': 'Raspberry Pi'
-            };
-            const prefix = mac ? mac.substring(0, 8).toUpperCase() : '';
-            return vendors[prefix] || 'Unknown';
-        }
-        
-        function getDeviceType(ip, trafficTypes) {
-            if (ip.startsWith('192.168.1.1') || ip === '192.168.1.1') return 'Router/Gateway';
-            if (ip.startsWith('192.168.1.')) return 'Local Device';
-            if (trafficTypes && trafficTypes.includes('mdns')) return 'Apple Device';
-            if (trafficTypes && trafficTypes.includes('homeassistant')) return 'Smart Home';
-            if (trafficTypes && trafficTypes.includes('mqtt')) return 'IoT Device';
-            return 'Unknown';
-        }
-        
         function getRiskClass(score) {
-            if (score >= 70) return 'risk-high';
+            if (score >= 80) return 'risk-crit';
+            if (score >= 60) return 'risk-high';
+            if (score >= 40) return 'risk-med';
             return 'risk-low';
         }
         
         async function loadData() {
             try {
-                // Stats
-                const statsRes = await fetch(API + '/api/v2/stats');
-                const stats = await statsRes.json();
-                document.getElementById('devices').textContent = stats.devices || 0;
-                document.getElementById('signals').textContent = stats.signals || 0;
-                document.getElementById('alerts').textContent = stats.alerts || 0;
-                document.getElementById('ml').textContent = stats.ml_classified || 0;
-                document.getElementById('anomalies').textContent = stats.anomalies || 0;
-                document.getElementById('redis').textContent = stats.redis_connected ? '✅' : '❌';
+                const devicesRes = await fetch(API + '/api/v2/devices?limit=100');
+                const data = await devicesRes.json();
+                const devs = data.devices || [];
                 
-                // Devices
-                const devicesRes = await fetch(API + '/api/v2/devices?limit=50');
-                const devicesData = await devicesRes.json();
-                const devs = devicesData.devices || [];
+                // Stats
+                let critical = 0, high = 0, medium = 0, low = 0, vulnCount = 0;
+                
+                devs.forEach(d => {
+                    const r = d.risk_score || 0;
+                    if (r >= 80) critical++;
+                    else if (r >= 60) high++;
+                    else if (r >= 40) medium++;
+                    else low++;
+                    if (d.vulnerabilities && d.vulnerabilities.length) vulnCount += d.vulnerabilities.length;
+                });
+                
+                document.getElementById('devices').textContent = devs.length;
+                document.getElementById('critical').textContent = critical;
+                document.getElementById('high').textContent = high;
+                document.getElementById('medium').textContent = medium;
+                document.getElementById('low').textContent = low;
+                document.getElementById('vulns').textContent = vulnCount;
+                
+                // Table - sort by risk
+                devs.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
+                
                 document.getElementById('devices-table').innerHTML = devs.map(d => {
-                    const vendor = d.vendor || getVendor(d.mac);
-                    const type = d.device_type || getDeviceType(d.ip, d.traffic_types);
-                    const risk = d.risk_score || 0;
-                    const firstSeen = d.first_seen ? d.first_seen.substring(0, 19) : 'N/A';
+                    const r = d.risk_score || 0;
+                    const riskClass = getRiskClass(r);
+                    const vulns = d.vulnerabilities || [];
+                    const vulnHtml = vulns.map(v => 
+                        `<span class="vuln">${v.service || v.port} (${v.risk || 'high'})</span>`
+                    ).join('');
                     const lastSeen = d.last_seen ? d.last_seen.substring(0, 19) : 'N/A';
+                    
                     return `<tr>
                         <td>${d.ip}</td>
                         <td>${d.mac || 'N/A'}</td>
-                        <td class="vendor">${vendor}</td>
-                        <td class="type">${type}</td>
-                        <td class="${getRiskClass(risk)}">${risk}</td>
-                        <td>${firstSeen}</td>
+                        <td class="vendor">${d.vendor || 'Unknown'}</td>
+                        <td class="type">${d.device_type || 'Unknown'}</td>
+                        <td class="${riskClass}">${r}</td>
+                        <td>${vulnHtml || '-'}</td>
                         <td>${lastSeen}</td>
                     </tr>`;
                 }).join('') || '<tr><td colspan="7">No devices found</td></tr>';
                 
-                // Signals
-                const signalsRes = await fetch(API + '/api/v2/signals?limit=20');
-                const signalsData = await signalsRes.json();
-                const sigs = signalsData.signals || [];
-                document.getElementById('signals-table').innerHTML = sigs.map(s => {
-                    const mlType = s.ml_classification ? s.ml_classification.type : '-';
-                    const confidence = s.ml_classification ? s.ml_classification.confidence.toFixed(2) : '-';
-                    const timestamp = s.timestamp ? s.timestamp.substring(0, 19) : 'N/A';
-                    return `<tr>
-                        <td>${s.protocol || 'N/A'}</td>
-                        <td>${s.src_ip || 'N/A'}</td>
-                        <td>${s.dst_ip || 'N/A'}</td>
-                        <td>${s.port || '-'}</td>
-                        <td class="vendor">${mlType}</td>
-                        <td>${confidence}</td>
-                        <td>${timestamp}</td>
-                    </tr>`;
-                }).join('') || '<tr><td colspan="7">No signals found. Run sniffer!</td></tr>';
-                
-            } catch(e) {
-                console.error(e);
-            }
+            } catch(e) { console.error(e); }
         }
         
         loadData();

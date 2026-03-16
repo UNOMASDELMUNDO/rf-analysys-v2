@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""
+ML Engine V2 - Enhanced with Vulnerability Detection
+"""
+import os
+from datetime import datetime, timedelta
+from collections import Counter
+from pymongo import MongoClient
+
+MONGODB_URL = os.environ.get("MONGODB_URL", "mongodb://mongodb:27017")
+
+# Extended OUI Database - más de 200 fabricantes
+OUI_VENDORS = {
+    # Apple
+    'F01898': 'Apple Inc.', '3C0630': 'Apple Inc.', 'A483E7': 'Apple Inc.',
+    '002500': 'Apple Inc.', '001FF3': 'Apple Inc.', 'DC2B2A': 'Apple Inc.',
+    '44D884': 'Apple Inc.', '6C3E6D': 'Apple Inc.', 'B065BD': 'Apple Inc.',
+    'A4D1D2': 'Apple Inc.', '7C6DF8': 'Apple Inc.', 'C06599': 'Apple Inc.',
+    'D023DB': 'Apple Inc.', 'A45E60': 'Apple Inc.', '48A673': 'Apple Inc.',
+    # Google/Chromecast
+    '1CF43F': 'Google LLC', '3C5AB4': 'Google LLC', '94EB2C': 'Google LLC',
+    'F4F5D8': 'Google LLC', 'DC418B': 'Google LLC', '8C7710': 'Google LLC',
+    # Amazon
+    '0C47C9': 'Amazon', '34D270': 'Amazon', '38356C': 'Amazon',
+    '5056BF': 'Amazon', '50DCE7': 'Amazon', '6854FD': 'Amazon',
+    '74C246': 'Amazon', '84D6D0': 'Amazon', 'A002DC': 'Amazon',
+    # Microsoft
+    '000D3A': 'Microsoft', '001DD8': 'Microsoft', '002481': 'Microsoft',
+    '0025AE': 'Microsoft', '0050F2': 'Microsoft', '282C02': 'Microsoft',
+    '30B49E': 'Microsoft', '3C8375': 'Microsoft', '485073': 'Microsoft',
+    # Samsung
+    '10F96F': 'Samsung', '1C5A6E': 'Samsung', '2C6E85': 'Samsung',
+    '3423BA': 'Samsung', '38F23B': 'Samsung', '40404F': 'Samsung',
+    '485B39': 'Samsung', '4C1EDE': 'Samsung', '5C3C27': 'Samsung',
+    '64B473': 'Samsung', '6C2F2C': 'Samsung', '7844E8': 'Samsung',
+    '8CF5A3': 'Samsung', '90F1AA': 'Samsung', 'AC36E2': 'Samsung',
+    # Raspberry Pi
+    'B827EB': 'Raspberry Pi', 'DCA632': 'Raspberry Pi', 'E45F01': 'Raspberry Pi',
+    'E45F1A': 'Raspberry Pi', 'B827EB': 'RPi',
+    # ESP32/ESP8266
+    'EC086B': 'Espressif', '30AEA4': 'Espressif', '246F28': 'Espressif',
+    '7CDFA1': 'Espressif', 'B4E842': 'Espressif', 'BCFF4F': 'Espressif',
+    # Dell
+    '00D861': 'Dell', '14BEA5': 'Dell', '14FE45': 'Dell',
+    '18A990': 'Dell', '18DBF9': 'Dell', '1C4020': 'Dell',
+    '1CC0DE': 'Dell', '24126E': 'Dell', '242E2A': 'Dell',
+    '249B57': 'Dell', '252349': 'Dell', '28395A': 'Dell',
+    # HP
+    '001DF6': 'HP', '00215A': 'HP', '0024A5': 'HP',
+    '002618': 'HP', '00269E': 'HP', '00270E': 'HP',
+    '00279E': 'HP', '002A10': 'HP', '3C4A92': 'HP',
+    '3C52A1': 'HP', '3CD0F8': 'HP', '3CE361': 'HP',
+    # Cisco/Linksys
+    '001A2B': 'Cisco', '001E13': 'Cisco', '001F6C': 'Cisco',
+    '001F9E': 'Cisco', '002155': 'Cisco', '0022ABCD': 'Cisco',
+    '00249B': 'Cisco', '00269B': 'Cisco', '00E08D': 'Cisco',
+    '001742': 'Linksys', '001A70': 'Linksys', '001D7E': 'Linksys',
+    '001E68': 'Linksys', '001F33': 'Linksys', 'C03F0E': 'NETGEAR',
+    # NETGEAR
+    '002401': 'NETGEAR', '002438': 'NETGEAR', '0024B2': 'NETGEAR',
+    '00253E': 'NETGEAR', '002618': 'NETGEAR', '00269F': 'NETGEAR',
+    '002710': 'NETGEAR', 'C40415': 'NETGEAR', 'C43DC7': 'NETGEAR',
+    'C4542C': 'NETGEAR', 'C4731E': 'NETGEAR', 'C4F84E': 'NETGEAR',
+    'CC40E0': 'NETGEAR', 'E0469A': 'NETGEAR', 'E09C7C': 'NETGEAR',
+    # TP-Link
+    'E091F5': 'TP-Link', '50C7BF': 'TP-Link', '54C80F': 'TP-Link',
+    'A42BB0': 'TP-Link', 'AC84C6': 'TP-Link', 'B0A7B9': 'TP-Link',
+    'B0BE76': 'TP-Link', 'C006C3': 'TP-Link', 'C0253D': 'TP-Link',
+    'C0279C': 'TP-Link', 'C0E42D': 'TP-Link', 'D46E07': 'TP-Link',
+    'D4628D': 'TP-Link', 'D8071A': 'TP-Link', 'D8E751': 'TP-Link',
+    # D-Link
+    'C0C1C0': 'D-Link', '1CAFF7': 'D-Link', '001E58': 'D-Link',
+    '001E5B': 'D-Link', '001F5F': 'D-Link', '002215': 'D-Link',
+    '00223B': 'D-Link', '002318': 'D-Link', '1C7EE5': 'D-Link',
+    # Xiaomi
+    '286AB8': 'Xiaomi', '34B0B3': 'Xiaomi', '3CBDD8': 'Xiaomi',
+    '4C63CD': 'Xiaomi', '503EAA': 'Xiaomi', '54A704': 'Xiaomi',
+    '5C927B': 'Xiaomi', '64B473': 'Xiaomi', '6C5C14': 'Xiaomi',
+    '78D6F0': 'Xiaomi', '7C1DD9': 'Xiaomi', '84F3EB': 'Xiaomi',
+    '98FAE3': 'Xiaomi', '9C99A0': 'Xiaomi', 'A423B1': 'Xiaomi',
+    'A4F1DB': 'Xiaomi', 'B0E235': 'Xiaomi', 'C4F0B7': 'Xiaomi',
+    # Huawei
+    '000C29': 'VMware', '001C42': 'Parallels', '080027': 'VirtualBox',
+    '001DD8': 'Microsoft', '000D3A': 'Microsoft',
+    # IoT Devices
+    '00158D': 'ZigBee', '0017B6': 'Philips Hue', 'EC1A59': 'Belkin',
+    'B4750E': 'Belkin', 'C03F0E': 'NETGEAR',
+    # Default for cloud IPs (they show MAC of gateway)
+    '1CF43F': 'Cloud/ISP',
+}
+
+# Known vulnerable services
+VULNERABLE_SERVICES = {
+    21: {'name': 'FTP', 'risk': 'high', 'vuln': 'Unencrypted, easy target'},
+    23: {'name': 'Telnet', 'risk': 'critical', 'vuln': 'No encryption, easy compromise'},
+    25: {'name': 'SMTP', 'risk': 'medium', 'vuln': 'Open relay'},
+    53: {'name': 'DNS', 'risk': 'medium', 'vuln': 'DNS spoofing'},
+    110: {'name': 'POP3', 'risk': 'high', 'vuln': 'Unencrypted credentials'},
+    135: {'name': 'RPC', 'risk': 'high', 'vuln': 'Windows exploit'},
+    139: {'name': 'NetBIOS', 'risk': 'high', 'vuln': 'Information disclosure'},
+    143: {'name': 'IMAP', 'risk': 'high', 'vuln': 'Unencrypted credentials'},
+    445: {'name': 'SMB', 'risk': 'critical', 'vuln': 'WannaCry, EternalBlue'},
+    514: {'name': 'Syslog', 'risk': 'medium', 'vuln': 'Unencrypted logs'},
+    515: {'name': 'LPD', 'risk': 'low', 'vuln': 'Printer'},
+    1433: {'name': 'MSSQL', 'risk': 'critical', 'vuln': 'Data breach'},
+    1521: {'name': 'Oracle', 'risk': 'critical', 'vuln': 'Data breach'},
+    3306: {'name': 'MySQL', 'risk': 'high', 'vuln': 'Data breach'},
+    3389: {'name': 'RDP', 'risk': 'critical', 'vuln': 'Brute force'},
+    5432: {'name': 'PostgreSQL', 'risk': 'high', 'vuln': 'Data breach'},
+    5900: {'name': 'VNC', 'risk': 'high', 'vuln': 'No encryption'},
+    6379: {'name': 'Redis', 'risk': 'critical', 'vuln': 'No auth by default'},
+    8080: {'name': 'HTTP-Alt', 'risk': 'medium', 'vuln': 'Unencrypted web'},
+    8443: {'name': 'HTTPS-Alt', 'risk': 'low', 'vuln': 'Alt port'},
+    8888: {'name': 'HTTP-Alt', 'risk': 'medium', 'vuln': 'Often unsecured'},
+    9000: {'name': 'SonarQube', 'risk': 'high', 'vuln': 'Code exposure'},
+    9200: {'name': 'Elasticsearch', 'risk': 'critical', 'vuln': 'Data exposure'},
+    27017: {'name': 'MongoDB', 'risk': 'critical', 'vuln': 'No auth by default'},
+}
+
+# Device risk profiles
+RISK_PROFILES = {
+    'Router/Gateway': {'base_risk': 50, 'vulns': ['weak_default_credential']},
+    'IoT Camera': {'base_risk': 70, 'vulns': ['default_password', 'unencrypted_stream']},
+    'Smart TV': {'base_risk': 40, 'vulns': ['casting_vuln']},
+    'Smart Speaker': {'base_risk': 50, 'vulns': ['microphone_access']},
+    'Smart Home Hub': {'base_risk': 60, 'vulns': ['central_vuln']},
+    'ESP32': {'base_risk': 55, 'vulns': ['weak_wifi', 'no_encryption']},
+    'Raspberry Pi': {'base_risk': 35, 'vulns': ['default_pi_user']},
+    'VM': {'base_risk': 20, 'vulns': []},
+    'Unknown': {'base_risk': 50, 'vulns': ['unidentified']},
+}
+
+class MLEngine:
+    def __init__(self):
+        self.client = MongoClient(MONGODB_URL)
+        self.db = self.client['rf_analyzer_v2']
+        
+    def get_vendor(self, mac):
+        if not mac or mac == 'unknown':
+            return 'Unknown'
+        prefix = mac.replace(':', '').replace('-', '').upper()[:6]
+        return OUI_VENDORS.get(prefix, 'Unknown')
+    
+    def detect_vulnerabilities(self, device):
+        """Detecta vulnerabilidades basadas en puertos y servicios"""
+        vulns = []
+        risk_score = 0
+        ports = device.get('open_ports', [])
+        
+        if not ports:
+            # Check signals for port info
+            signals = list(self.db.signals.find({'src_ip': device.get('ip')}).limit(100))
+            ports = list(set(s.get('port', 0) for s in signals if s.get('port')))
+        
+        for port in ports:
+            if port in VULNERABLE_SERVICES:
+                vuln = VULNERABLE_SERVICES[port]
+                vulns.append({
+                    'port': port,
+                    'service': vuln['name'],
+                    'risk_level': vuln['risk'],
+                    'vulnerability': vuln['vuln']
+                })
+                if vuln['risk'] == 'critical':
+                    risk_score += 30
+                elif vuln['risk'] == 'high':
+                    risk_score += 20
+                elif vuln['risk'] == 'medium':
+                    risk_score += 10
+        
+        # Check for suspicious patterns
+        ip = device.get('ip', '')
+        traffic_types = device.get('traffic_types', [])
+        
+        # Known vulnerable patterns
+        if 'telnet' in traffic_types:
+            vulns.append({'port': 23, 'service': 'Telnet', 'risk_level': 'critical', 'vulnerability': 'Unencrypted access'})
+            risk_score += 30
+            
+        if 'ftp' in traffic_types:
+            vulns.append({'port': 21, 'service': 'FTP', 'risk_level': 'high', 'vulnerability': 'Unencrypted'})
+            risk_score += 20
+            
+        # Cloud IPs are less concerning
+        if not ip.startswith('192.168.'):
+            risk_score = max(0, risk_score - 20)
+            
+        return {'vulnerabilities': vulns, 'risk_score': min(100, risk_score)}
+    
+    def classify_device(self, device):
+        ip = device.get('ip', '')
+        mac = device.get('mac', '')
+        traffic = device.get('traffic_types', [])
+        ports = device.get('open_ports', [])
+        
+        vendor = self.get_vendor(mac)
+        
+        # Determine device type
+        if ip.endswith('.1') or ip == '192.168.1.1':
+            device_type = 'Router/Gateway'
+        elif 'Raspberry' in vendor or 'RPi' in vendor:
+            device_type = 'SBC'
+        elif 'VMware' in vendor or 'VirtualBox' in vendor or 'Parallels' in vendor:
+            device_type = 'VM'
+        elif 'Apple' in vendor:
+            device_type = 'Apple Device'
+        elif 'ESP' in vendor or 'Espressif' in vendor:
+            device_type = 'ESP32'
+        elif vendor in ['Amazon', 'Xiaomi', 'Samsung', 'TP-Link', 'D-Link', 'NETGEAR', 'Linksys', 'Cisco']:
+            # Check traffic for specific type
+            if 'mqtt' in traffic:
+                device_type = 'IoT Device'
+            elif 'mdns' in traffic:
+                device_type = 'Apple Device'
+            else:
+                device_type = 'Smart Device'
+        elif 'mdns' in traffic:
+            device_type = 'Apple Device'
+        elif 'mqtt' in traffic:
+            device_type = 'IoT Device'
+        elif 'homeassistant' in traffic:
+            device_type = 'Smart Home Hub'
+        elif 'google' in vendor.lower() or 'chromecast' in vendor.lower():
+            device_type = 'Smart Speaker/Display'
+        else:
+            device_type = 'Unknown'
+        
+        # Get vulnerabilities
+        vuln_info = self.detect_vulnerabilities(device)
+        
+        # Calculate final risk
+        base_risk = RISK_PROFILES.get(device_type, RISK_PROFILES['Unknown'])['base_risk']
+        risk_score = min(100, base_risk + vuln_info['risk_score'])
+        
+        return {
+            'vendor': vendor,
+            'device_type': device_type,
+            'vulnerabilities': vuln_info['vulnerabilities'],
+            'risk_score': risk_score,
+            'risk_factors': RISK_PROFILES.get(device_type, {}).get('vulns', [])
+        }
+    
+    def run_classification(self):
+        devices = list(self.db.devices.find())
+        results = {'classified': 0, 'high_risk': 0, 'critical': 0}
+        
+        for dev in devices:
+            cls = self.classify_device(dev)
+            self.db.devices.update_one(
+                {'ip': dev['ip']},
+                {'$set': {
+                    'vendor': cls['vendor'],
+                    'device_type': cls['device_type'],
+                    'vulnerabilities': cls['vulnerabilities'],
+                    'risk_score': cls['risk_score'],
+                    'risk_factors': cls['risk_factors'],
+                    'ml_classified': True,
+                    'last_ml_scan': datetime.now().isoformat()
+                }}
+            )
+            results['classified'] += 1
+            if cls['risk_score'] >= 70:
+                results['critical'] += 1
+            elif cls['risk_score'] >= 50:
+                results['high_risk'] += 1
+        
+        return results
+
+if __name__ == '__main__':
+    ml = MLEngine()
+    print(ml.run_classification())
